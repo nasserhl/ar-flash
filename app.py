@@ -1,57 +1,73 @@
 import streamlit as st
-from crewai import Agent, Task, Crew, Process
-from crewai import LLM
-import os
+from google import genai
 
-st.set_page_config(page_title="A&R Flash", page_icon="🔥")
+st.set_page_config(page_title="A&R Flash", page_icon="🔥", layout="centered")
 
 st.title("🔥 A&R Flash")
-st.write("AI Trend Scout for Arabic Pop")
+st.caption("AI Trend Scout for Arabic Pop (V1)")
 
-google_api_key = st.text_input("Enter Gemini API Key", type="password")
+# --- Secrets ---
+API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+if not API_KEY:
+    st.error("Missing GEMINI_API_KEY in Streamlit Secrets. Go to Manage app → Settings → Secrets.")
+    st.stop()
 
-if google_api_key:
-    os.environ["GOOGLE_API_KEY"] = google_api_key
+client = genai.Client(api_key=API_KEY)
+MODEL = "gemini-2.5-flash"
 
-    llm = LLM(
-        model="gemini-2.5-flash",
-        temperature=0.7
-    )
+# --- UI ---
+brief = st.text_area(
+    "اكتب brief سريع (موضوع/فكرة/جمهور/مزاج):",
+    placeholder="مثال: أغنية بوب عربية للشباب 17-24 عن كسر الروتين، طاقة ومرح، مناسبة لتيك توك.",
+    height=120
+)
 
-    trend_scout = Agent(
-        role="Trend Scout",
-        goal="Generate 10 fresh Arabic pop song concepts for youth 17-24 in Arab Israel optimized for TikTok virality.",
-        backstory="You are a sharp A&R trend spotter. Output Arabic only.",
-        llm=llm,
-        verbose=False
-    )
+col1, col2 = st.columns(2)
+with col1:
+    n_ideas = st.slider("عدد الأفكار", 5, 20, 10)
+with col2:
+    temp = st.slider("الـ Temperature", 0.0, 1.0, 0.7)
 
-    ar_judge = Agent(
-        role="A&R Judge",
-        goal="Select TOP 3 most viral ideas and score them for TikTok/Live/Spotify, then give short production briefs.",
-        backstory="You are a commercial A&R. Output Arabic only.",
-        llm=llm,
-        verbose=False
-    )
+generate = st.button("⚡ Generate", use_container_width=True)
 
-    task_ideas = Task(
-        description="Generate ideas",
-        agent=trend_scout
-    )
+# --- Prompt template ---
+def build_prompt(user_brief: str, ideas: int) -> str:
+    return f"""
+أنت فريق A&R محترف (Trend Scout + A&R Judge). اكتب بالعربية فقط.
 
-    task_judge = Task(
-        description="Evaluate ideas",
-        agent=ar_judge
-    )
+المطلوب:
+1) ولّد {ideas} أفكار لأغاني بوب عربية جديدة ومناسبة لتيك توك (للشباب 17-24).
+لكل فكرة اكتب:
+- Title (عنوان)
+- Core Emotion (المشاعر الأساسية)
+- Hook sentence (سطر عربي قصير “لازم يعلق”)
+- BPM suggestion
+- Production vibe (وصف إنتاج/جينرا/إيقاع)
 
-    crew = Crew(
-        agents=[trend_scout, ar_judge],
-        tasks=[task_ideas, task_judge],
-        process=Process.sequential
-    )
+2) بعدها قيّم الأفكار واختر أفضل 3 من ناحية:
+TikTok potential / Live performance / Spotify replay
+واعطِ لكل واحدة:
+- Score من 10 لكل بند (3 بنود)
+- سبب سريع
+- Production brief مختصر (ملامح توزيع/صوت/هيكل كورس)
 
-    if st.button("Generate A&R Report"):
-        with st.spinner("Cooking hits... 🔥"):
-            result = crew.kickoff()
-            st.success("Done!")
-            st.write(result)
+الـ Brief من المستخدم:
+{user_brief}
+""".strip()
+
+if generate:
+    if not brief.strip():
+        st.warning("اكتب brief صغير قبل ما نولّد الأفكار.")
+        st.stop()
+
+    prompt = build_prompt(brief.strip(), n_ideas)
+
+    with st.spinner("عم نطبخ أفكار… 🔥"):
+        resp = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config={"temperature": temp}
+        )
+
+    st.subheader("النتيجة")
+    st.write(resp.text)
