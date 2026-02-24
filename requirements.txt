@@ -1,5 +1,2 @@
 streamlit
-crewai[google-genai]
-google-generativeai
-litellm
-python-dotenv
+google-genai
