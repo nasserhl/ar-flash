@@ -1,12 +1,18 @@
 import streamlit as st
 from google import genai
 
-st.set_page_config(page_title="جاكارا | Jakara", page_icon="🔥", layout="centered")
+# -----------------------------
+# Page setup
+# -----------------------------
+st.set_page_config(
+    page_title="جاكارا | Jakara",
+    page_icon="🔥",
+    layout="centered"
+)
 
-st.title("🔥 جاكارا | Jakara")
-st.caption("AI-Powered Arabic Hit Lab")
-st.markdown("### من فكرة إلى ديمو وخطة إطلاق خلال دقائق")
-
+# -----------------------------
+# Secrets / API
+# -----------------------------
 API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 if not API_KEY:
     st.error("مفتاح Gemini غير موجود في Secrets.")
@@ -15,6 +21,16 @@ if not API_KEY:
 client = genai.Client(api_key=API_KEY)
 MODEL = "gemini-2.5-flash"
 
+# -----------------------------
+# UI Header
+# -----------------------------
+st.title("🔥 جاكارا | Jakara")
+st.caption("AI-Powered Arabic Hit Lab")
+st.markdown("### من فكرة إلى ديمو وخطة إطلاق خلال دقائق")
+
+# -----------------------------
+# Inputs
+# -----------------------------
 st.markdown("### ✍️ صف لي فكرة الأغنية أو الإحساس")
 brief = st.text_area(
     "",
@@ -22,57 +38,73 @@ brief = st.text_area(
     height=120
 )
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     market = st.selectbox(
-        "🌍 اختر السوق",
+        "🌍 السوق",
         ["عربي عام", "الخليج", "مصر", "الشام", "المغرب", "العراق"]
     )
 
 with col2:
+    voice_type = st.selectbox(
+        "🎤 نوع الأداء",
+        ["محايد", "مغني", "مغنية", "ديو"]
+    )
+
+with col3:
     mode = st.selectbox(
-        "🎵 اختر الجو",
+        "🎵 الجو",
         ["🔥 Viral TikTok", "❤️ Romantic Pop", "🌑 Dark Mood", "📻 Radio Hit"]
     )
 
 generate = st.button("✨ اصنع الأغنية", use_container_width=True)
 
-def build_prompt(user_brief, market, mode):
+# -----------------------------
+# Prompt builder
+# -----------------------------
+def build_prompt(user_brief: str, market: str, mode: str, voice_type: str) -> str:
     return f"""
 أنت خبير A&R عربي ومطور أغانٍ تجارية مخصصة للسوق العربي.
 
-المطلوب: أنشئ أغنية عربية جديدة جاهزة للديمو + جاهزة للتسويق.
+مهمتك أن تبني أغنية عربية جديدة جاهزة كديمو أولي، بشكل مناسب للسوق المطلوب.
 
-اعتمد على:
-- ما ينجح عادة في TikTok وYouTube Shorts وInstagram Reels في السوق العربي
-- بساطة الهوك
-- قابلية التكرار
-- هوية مناسبة للسوق المحدد
+المعطيات:
+- السوق المستهدف: {market}
+- نوع الأداء: {voice_type}
+- الجو العام: {mode}
+- فكرة المستخدم: {user_brief}
 
-السوق المستهدف: {market}
-الجو المطلوب: {mode}
-فكرة المستخدم: {user_brief}
+التعليمات:
+- اكتب بالعربية فقط
+- اجعل النتيجة واضحة ومقسمة
+- افصل الكلمات عن برومبتات سونو
+- استند إلى منطق السوق العربي وما ينجح عادة على TikTok / Reels / Shorts
+- لا تدّعِ أنك قرأت بيانات حية من الإنترنت
+- قدم تحليل سوق مبسط مبني على فهم السوق، لا على بيانات مباشرة
 
-أعد النتيجة بهذا الترتيب الواضح تمامًا، واكتب بالعربية فقط:
+أعد النتيجة بالأقسام التالية فقط وبنفس الترتيب:
+
+## MARKET_SNAPSHOT
+3 نقاط قصيرة عن ملامح هذا السوق: نوع الموضوعات الجاذبة، طبيعة الهوك، والإحساس العام المناسب.
 
 ## TITLE
-عنوان الأغنية
+عنوان جذاب للأغنية.
 
 ## HOOK
-جملة هوك قصيرة جدًا وقوية وقابلة للتكرار
+جملة هوك قصيرة جدًا وقابلة للتكرار.
 
 ## VIRAL_ANGLE
-3 نقاط قصيرة تشرح لماذا قد تنتشر الأغنية على TikTok / Reels / Shorts
+3 نقاط قصيرة تشرح لماذا قد تكون الأغنية قابلة للانتشار.
 
 ## BPM
-رقم BPM مناسب
+رقم BPM مناسب.
 
 ## PRODUCTION_NOTES
-وصف مختصر للإيقاع، الجو، نوع التوزيع، والإحساس العام
+وصف مختصر للإيقاع، نوع التوزيع، الإحساس، والجو العام.
 
 ## LYRICS
-اكتب كلمات كاملة ومقسمة هكذا فقط:
+اكتب كلمات كاملة ومقسمة بالشكل التالي فقط:
 Verse 1:
 ...
 Pre-Chorus:
@@ -85,22 +117,27 @@ Bridge:
 ...
 
 ## SUNO_STYLE_PROMPT
-اكتب فقط style prompt احترافي لسونو بدون كلمات.
-يجب أن يتضمن:
+اكتب فقط برومبت ستايل احترافي لسونو بدون أي كلمات أغنية نهائيًا.
+يجب أن يتضمن فقط:
 - genre
-- market flavor
+- regional flavor
 - vocal tone
 - BPM feel
 - instrumentation
+- energy
 - mix direction
+- arrangement feel
 
-## SUNO_FULL_PROMPT
-اكتب prompt كامل لسونو يتضمن:
+## SUNO_DIRECTION_PROMPT
+اكتب برومبت توجيهي متقدم لسونو بدون كلمات الأغنية.
+يجب أن يتضمن:
 - style direction
 - structure direction
-- mood
-- hook direction
-- ثم lyrics مختصرة/مهيأة لسونو
+- mood direction
+- vocal direction
+- hook feel
+- arrangement direction
+- sonic references
 
 ## MARKETING_IDEAS
 اكتب 3 أفكار تسويق قصيرة:
@@ -108,73 +145,102 @@ Bridge:
 2) فكرة Instagram Reel
 3) فكرة YouTube Short
 
-لا تضف أي شرح خارج هذه الأقسام.
+لا تضف أي أقسام إضافية.
 """.strip()
 
-def extract_section(text, section_name):
+
+# -----------------------------
+# Section extractor
+# -----------------------------
+SECTION_NAMES = [
+    "MARKET_SNAPSHOT",
+    "TITLE",
+    "HOOK",
+    "VIRAL_ANGLE",
+    "BPM",
+    "PRODUCTION_NOTES",
+    "LYRICS",
+    "SUNO_STYLE_PROMPT",
+    "SUNO_DIRECTION_PROMPT",
+    "MARKETING_IDEAS"
+]
+
+def extract_section(text: str, section_name: str) -> str:
     marker = f"## {section_name}"
     start = text.find(marker)
     if start == -1:
         return ""
     start += len(marker)
+
     next_pos = len(text)
-    for sec in [
-        "TITLE", "HOOK", "VIRAL_ANGLE", "BPM", "PRODUCTION_NOTES",
-        "LYRICS", "SUNO_STYLE_PROMPT", "SUNO_FULL_PROMPT", "MARKETING_IDEAS"
-    ]:
+    for sec in SECTION_NAMES:
         if sec == section_name:
             continue
         idx = text.find(f"## {sec}", start)
         if idx != -1 and idx < next_pos:
             next_pos = idx
+
     return text[start:next_pos].strip()
 
+# -----------------------------
+# Generate result
+# -----------------------------
 if generate:
     if not brief.strip():
         st.warning("يرجى كتابة فكرة الأغنية أولاً.")
         st.stop()
 
-    with st.spinner("جارٍ صناعة الأغنية... 🔥"):
+    prompt = build_prompt(brief.strip(), market, mode, voice_type)
+
+    with st.spinner("🔥 جارٍ صناعة الأغنية..."):
         response = client.models.generate_content(
             model=MODEL,
-            contents=build_prompt(brief, market, mode),
+            contents=prompt,
             config={"temperature": 0.85}
         )
 
     result = response.text
 
+    market_snapshot = extract_section(result, "MARKET_SNAPSHOT")
     title = extract_section(result, "TITLE")
     hook = extract_section(result, "HOOK")
-    viral = extract_section(result, "VIRAL_ANGLE")
+    viral_angle = extract_section(result, "VIRAL_ANGLE")
     bpm = extract_section(result, "BPM")
-    production = extract_section(result, "PRODUCTION_NOTES")
+    production_notes = extract_section(result, "PRODUCTION_NOTES")
     lyrics = extract_section(result, "LYRICS")
-    suno_style = extract_section(result, "SUNO_STYLE_PROMPT")
-    suno_full = extract_section(result, "SUNO_FULL_PROMPT")
-    marketing = extract_section(result, "MARKETING_IDEAS")
+    suno_style_prompt = extract_section(result, "SUNO_STYLE_PROMPT")
+    suno_direction_prompt = extract_section(result, "SUNO_DIRECTION_PROMPT")
+    marketing_ideas = extract_section(result, "MARKETING_IDEAS")
 
     st.markdown("---")
+
+    st.markdown("## 📊 Market Snapshot")
+    st.write(market_snapshot if market_snapshot else "—")
+
     st.markdown("## 🎵 Title + Hook")
     st.subheader(title if title else "—")
     st.write(hook if hook else "—")
 
     st.markdown("## 📈 Viral Angle")
-    st.write(viral if viral else "—")
+    st.write(viral_angle if viral_angle else "—")
 
     st.markdown("## 🥁 BPM")
     st.write(bpm if bpm else "—")
 
     st.markdown("## 🎚 Production Notes")
-    st.write(production if production else "—")
+    st.write(production_notes if production_notes else "—")
 
     st.markdown("## 🎶 Lyrics")
-    st.text_area("Lyrics", lyrics, height=320)
+    st.text_area("Lyrics", value=lyrics, height=320)
+
+    st.markdown("## 📋 Copy Lyrics")
+    st.code(lyrics if lyrics else "—", language="text")
 
     st.markdown("## 🎧 Suno Style Prompt")
-    st.code(suno_style if suno_style else "—", language="text")
+    st.code(suno_style_prompt if suno_style_prompt else "—", language="text")
 
-    st.markdown("## 🎤 Suno Full Prompt")
-    st.code(suno_full if suno_full else "—", language="text")
+    st.markdown("## 🎛 Suno Direction Prompt")
+    st.code(suno_direction_prompt if suno_direction_prompt else "—", language="text")
 
     st.markdown("## 🎬 Marketing Ideas")
-    st.write(marketing if marketing else "—")
+    st.write(marketing_ideas if marketing_ideas else "—")
